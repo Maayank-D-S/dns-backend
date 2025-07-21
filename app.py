@@ -1,8 +1,19 @@
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
+from flask_cors import CORS   # ← import
 
 app = Flask(__name__)
+CORS(app, resources={
+    r"/customers": {
+        "origins": [
+            "http://localhost:5173",        # your Vite dev server
+            "https://www.yourproduction.com"  # your live site
+        ]
+    }
+})
+
+
 app.config['SQLALCHEMY_DATABASE_URI']   = 'sqlite:///customers.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
