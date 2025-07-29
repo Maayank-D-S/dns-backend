@@ -6,8 +6,10 @@ from livekit.plugins import (
     openai,
     cartesia,
     deepgram,
+    noise_cancellation,
+    silero,
 )
-
+from livekit.plugins.turn_detector.multilingual import MultilingualModel
 
 load_dotenv()
 
@@ -22,7 +24,8 @@ async def entrypoint(ctx: agents.JobContext):
         stt=deepgram.STT(model="nova-3", language="multi"),
         llm=openai.LLM(model="gpt-4o-mini"),
         tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
-      
+        vad=silero.VAD.load(),
+        turn_detection=MultilingualModel(),
     )
 
     await session.start(
@@ -32,7 +35,7 @@ async def entrypoint(ctx: agents.JobContext):
             # LiveKit Cloud enhanced noise cancellation
             # - If self-hosting, omit this parameter
             # - For telephony applications, use `BVCTelephony` for best results
-            
+            noise_cancellation=noise_cancellation.BVC(), 
         ),
     )
 
