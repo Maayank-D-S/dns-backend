@@ -2,16 +2,15 @@ from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.exc import IntegrityError
 from flask_cors import CORS   # ← import
+from livekit import api
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
 
 app = Flask(__name__)
-CORS(app, resources={
-    r"/customers": {
-        "origins": [
-            "http://localhost:5173",        # your Vite dev server
-            "https://www.yourproduction.com"  # your live site
-        ]
-    }
-})
+CORS(app, origins=["http://localhost:5173", "https://www.dobliyalshah.com/"])
+
 
 
 app.config['SQLALCHEMY_DATABASE_URI']   = 'sqlite:///customers.db'
@@ -65,6 +64,30 @@ def add_customer():
 def get_customers():
     customers = Customer.query.all()
     return jsonify([c.to_dict() for c in customers]), 200
+
+
+@app.route('/getToken', methods=["POST"])
+def get_token():
+    data = request.get_json()
+    identity = data.get("identity")
+    room = data.get("room")
+
+    if not identity or not room:
+        return jsonify({"error": "Missing identity or room"}), 400
+
+    token = api.AccessToken(
+        os.getenv("LIVEKIT_API_KEY"),
+        os.getenv("LIVEKIT_API_SECRET"),
+    ).with_identity(identity).with_grants(
+        api.VideoGrants(
+            room_join=True,
+            room=room,
+            can_publish=True,
+            can_subscribe=True,
+        )
+    )
+    print(token.to_jwt())
+    return jsonify({"token": token.to_jwt()})
 
 if __name__ == '__main__':
     # Create tables before handling any requests
