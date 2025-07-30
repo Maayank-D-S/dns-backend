@@ -1,4 +1,5 @@
 from dotenv import load_dotenv
+import os
 import logging
 import traceback
 from livekit import agents
@@ -25,8 +26,10 @@ logging.basicConfig(level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %
 
 class Assistant(Agent):
     def __init__(self,session:AgentSession,index):
-        with open("prompt_template.txt", "r", encoding="utf-8") as f:
-                instructions = f.read()
+        base_dir = os.path.dirname(os.path.abspath(__file__))  # points to voice_agent/
+        prompt_path = os.path.join(base_dir, "prompt_template.txt")
+        with open(prompt_path, "r", encoding="utf-8") as f:
+            instructions = f.read()
         super().__init__(instructions=instructions)
         
         self.index = index
