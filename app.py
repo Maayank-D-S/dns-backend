@@ -4,6 +4,7 @@ from sqlalchemy.exc import IntegrityError
 from flask_cors import CORS   # ← import
 from livekit import api
 from dotenv import load_dotenv
+from routes.va import voice_agent_bp
 import os
 
 load_dotenv()
@@ -40,6 +41,7 @@ class Customer(db.Model):
             'mobile' : self.mobile
         }
 
+app.register_blueprint(voice_agent_bp, url_prefix="/voice-agent")
 @app.route('/customers', methods=['POST'])
 def add_customer():
     data = request.get_json(force=True)
