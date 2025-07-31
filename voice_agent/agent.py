@@ -12,6 +12,7 @@ from livekit.plugins import (
     silero
     
 )
+from livekit.agents.voice.agent import ModelSettings
 from livekit.agents.llm import ChatMessage
 import livekit.agents.llm as livekit_llm
 # from livekit.plugins.turn_detector.multilingual import MultilingualModel
@@ -32,15 +33,16 @@ class Assistant(Agent):
         with open(prompt_path, "r", encoding="utf-8") as f:
             instructions = f.read()
         super().__init__(instructions=instructions)
-        
+        self._instructions=instructions
         self.index = index
         self._session=session
         self.interaction_count = 0
         
-        async def llm_node(
+    async def llm_node(
         self,
         chat_ctx: livekit_llm.ChatContext,
         tools: list[livekit_llm.FunctionTool],
+        model_settings:ModelSettings
         ):
             self.interaction_count += 1
 
@@ -51,7 +53,7 @@ class Assistant(Agent):
             if chat_ctx.items and isinstance(chat_ctx.items[-1], ChatMessage) and chat_ctx.items[-1].role == "user":
                 user_query = chat_ctx.items[-1].text_content or ""
 
-            context = instructions + "\n\n"
+            context = self._instructions + "\n\n"
             if user_query.strip():
                 docs = self.index.similarity_search(user_query, k=5)
                 for doc in docs:
@@ -68,14 +70,14 @@ class Assistant(Agent):
                 print(f"{msg.role.upper()}: {msg.content}")
 
             first_chunk = True
-            async for chunk in Agent.default.llm_node(self, chat_ctx_to_use, tools):
+            async for chunk in Agent.default.llm_node(self, chat_ctx_to_use, tools,model_settings):
                 # if first_chunk:
                     # llm_response_received_time = time.time()
                     # llm_processing_time = llm_response_received_time - llm_query_sent_time
                 # logger.info(f"LLM query received at {llm_response_received_time:.2f} (Processing time: {llm_processing_time:.2f} seconds)")
                 # logger.info(f"TTS start at {llm_response_received_time:.2f}")
                 # first_chunk = False
-                yield chunk
+                yield chunk    
     
 
 async def request_fnc(req: JobRequest):
