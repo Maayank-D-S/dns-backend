@@ -1,9 +1,10 @@
 from dotenv import load_dotenv
+import asyncio
 import os
 import logging
 import traceback
 from livekit import agents
-from livekit.agents import AgentSession, Agent, RoomInputOptions
+from livekit.agents import AgentSession, Agent, RoomInputOptions, JobRequest
 from livekit.plugins import (
     openai,
     cartesia,
@@ -41,55 +42,33 @@ class Assistant(Agent):
         chat_ctx: livekit_llm.ChatContext,
         tools: list[livekit_llm.FunctionTool],
         ):
-              self.interaction_count += 1
-              if self.interaction_count <= 2:
-                  # Use original chat_ctx with full instructions for first two interactions
-                  chat_ctx_to_use = chat_ctx
-              else:
-                  # Use short system message and last three messages (last two user messages + assistant response)
-                  conversation_history = chat_ctx.items[-3:]  # Last 3 messages: user(n-1), assistant(n-1), user(n)
-                  chat_ctx_to_use = livekit_llm.ChatContext()
-                  chat_ctx_to_use.items = conversation_history
+            self.interaction_count += 1
 
+            chat_ctx_to_use = livekit_llm.ChatContext()
 
-              if chat_ctx.items and isinstance(chat_ctx.items[-1], ChatMessage) and chat_ctx.items[-1].role == "user":
-                    user_query = chat_ctx.items[-1].text_content or ""
-                    if user_query.strip():
-                        # Check if the query contains any trigger words (case-insensitive)
-                      # if any(trigger.lower() in user_query.lower() for trigger in self.TRIGGER_WORDS):
-                      # logger.info(f"Performing RAG for query: {user_query[:50]}...")
-                    # Start timing RAG
-                    
-                    # Fetch RAG context
-                        # retriever = self.index.as_retriever()
-                        # nodes = await retriever.aretrieve(user_query)
-                        docs =  index.similarity_search(user_query, k=15)
-                        context = []
-                        context = "Relevant context from documents:\n"
-                        for doc in docs:
-                            context.append(doc.page_content)
-                        
+    # 1. Get user query (latest message)
+            user_query = ""
+            if chat_ctx.items and isinstance(chat_ctx.items[-1], ChatMessage) and chat_ctx.items[-1].role == "user":
+                user_query = chat_ctx.items[-1].text_content or ""
 
-                        if chat_ctx_to_use.items and isinstance(chat_ctx_to_use.items[0], ChatMessage) and          chat_ctx_to_use.items[0].role == "system":
-                            chat_ctx_to_use.items[0].content.append(context)
-                        else:
-                            chat_ctx_to_use.items.insert(0, ChatMessage(role="system", content=[context]))
+            context = instructions + "\n\n"
+            if user_query.strip():
+                docs = self.index.similarity_search(user_query, k=5)
+                for doc in docs:
+                    context += doc.page_content + "\n"
+            
+            chat_ctx_to_use.items.append(ChatMessage(role="system", content=[context]))
+            conversation_history = [
+            msg for msg in chat_ctx.items if msg.role != "system"
+            ][-3:]
+            chat_ctx_to_use.items.extend(conversation_history)
 
-                    # Inject into system message of the chat context being used
-                        if chat_ctx_to_use.items and isinstance(chat_ctx_to_use.items[0], ChatMessage) and          chat_ctx_to_use.items[0].role == "system":
-                            chat_ctx_to_use.items[0].content.append(context)
-                        else:
-                            chat_ctx_to_use.items.insert(0, ChatMessage(role="system", content=[context]))
+            print("======== Final chat_ctx_to_use ========")
+            for msg in chat_ctx_to_use.items:
+                print(f"{msg.role.upper()}: {msg.content}")
 
-                    # rag_time = time.time() - rag_start_time
-                    # logger.info(f"RAG query processed in {rag_time:.2f} seconds for query: {user_query[:50]}...")
-                            print(f"[RAG] Injected context: {context[:100].replace(chr(10), ' | ')}...")
-                    # else:
-                    #     # logger.info(f"Skipping RAG for query: {user_query[:50]}...")
-              
-
-              first_chunk = True
-              async for chunk in Agent.default.llm_node(self, chat_ctx_to_use, tools, model_settings):
+            first_chunk = True
+            async for chunk in Agent.default.llm_node(self, chat_ctx_to_use, tools):
                 # if first_chunk:
                     # llm_response_received_time = time.time()
                     # llm_processing_time = llm_response_received_time - llm_query_sent_time
@@ -99,7 +78,16 @@ class Assistant(Agent):
                 yield chunk
     
 
-
+async def request_fnc(req: JobRequest):
+    # accept the job request
+    await req.accept(
+        # the agent's name (Participant.name), defaults to ""
+        name="agent",
+        # the agent's identity (Participant.identity), defaults to "agent-<jobid>"
+        identity="identity",
+        # attributes to set on the agent participant upon join
+        attributes={"myagent": "rocks"},
+    )
 async def entrypoint(ctx: agents.JobContext):
   try:
     from rag_utils import load_faiss_vectorstore
@@ -111,6 +99,7 @@ async def entrypoint(ctx: agents.JobContext):
         traceback.print_exc()
 
     await ctx.connect()
+    
 
     try:
             session = AgentSession(
@@ -131,6 +120,7 @@ async def entrypoint(ctx: agents.JobContext):
         logging.error(f"Failed to initialize Assistant: {str(e)}")
         return
 
+
     try:
       await session.start(
           room=ctx.room,
@@ -150,4 +140,4 @@ async def entrypoint(ctx: agents.JobContext):
 
 
 if __name__ == "__main__":
-    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint))
+    agents.cli.run_app(agents.WorkerOptions(entrypoint_fnc=entrypoint,request_fnc=request_fnc))
