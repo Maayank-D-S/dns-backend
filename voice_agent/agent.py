@@ -54,6 +54,13 @@ class Assistant(Agent):
                 user_query = chat_ctx.items[-1].text_content or ""
 
             context = self._instructions + "\n\n"
+            
+            if self.interaction_count == 1:
+            # First message: greet and ask
+                chat_ctx_to_use.items.append(ChatMessage(role="assistant", content=[
+                "Hi! I'm your UnBroker assistant, here to help you explore luxury properties. Could you tell me your preferred location or budget so I can better assist you?"
+                ]))
+                return  # Skip LLM generation — this is a static greeting
             if user_query.strip():
                 docs = self.index.similarity_search(user_query, k=5)
                 for doc in docs:
