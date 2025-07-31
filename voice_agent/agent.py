@@ -9,8 +9,8 @@ from livekit.plugins import (
     openai,
     cartesia,
     deepgram,
-    silero
-    
+    silero,
+    elevenlabs
 )
 from livekit.agents.voice.agent import ModelSettings
 from livekit.agents.llm import ChatMessage
@@ -55,12 +55,12 @@ class Assistant(Agent):
 
             context = self._instructions + "\n\n"
             
-            if self.interaction_count == 1:
-            # First message: greet and ask
-                chat_ctx_to_use.items.append(ChatMessage(role="assistant", content=[
-                "Hi! I'm your UnBroker assistant, here to help you explore luxury properties. Could you tell me your preferred location or budget so I can better assist you?"
-                ]))
-                return  # Skip LLM generation — this is a static greeting
+            # if self.interaction_count == 1:
+            # # First message: greet and ask
+            #     chat_ctx_to_use.items.append(ChatMessage(role="assistant", content=[
+            #     "Hi! I'm your UnBroker assistant, here to help you explore luxury properties. Could you tell me your preferred location or budget so I can better assist you?"
+            #     ]))
+            #     return  # Skip LLM generation — this is a static greeting
             if user_query.strip():
                 docs = self.index.similarity_search(user_query, k=5)
                 for doc in docs:
@@ -114,7 +114,11 @@ async def entrypoint(ctx: agents.JobContext):
             session = AgentSession(
                 stt=deepgram.STT(model="nova-3", language="multi"),
                 llm=openai.LLM(model="gpt-4o"),
-                tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+                # tts=cartesia.TTS(model="sonic-2", voice="f786b574-daa5-4673-aa0c-cbe3e8534c02"),
+                tts=elevenlabs.TTS(
+                    voice_id="VJzrUxHaC52mTyYHMCnK",
+                    model="eleven_turbo_v2_5"
+                ),
                 vad=silero.VAD.load(),
                 # turn_detection=MultilingualModel(),
             )
